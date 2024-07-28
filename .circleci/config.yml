@@ -2,6 +2,12 @@
 # Stacks detected: artifact:go-executable:,deps:go:.
 version: 2.1
 jobs:
+  release:
+    docker:
+      - image: cimg/go:1.22
+    steps:
+      - checkout
+      - run: curl -sfL https://goreleaser.com/static/run | bash
   test-go:
     # Install go modules and run tests
     docker:
@@ -70,6 +76,12 @@ workflows:
       - build-go-executables:
           requires:
             - test-go
-    # - deploy:
-    #     requires:
-    #       - build-go-executables
+  main:
+    jobs:
+      - release:
+          # Only run this job on git tag pushes
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /v[0-9]+(\.[0-9]+)*(-.*)*/
