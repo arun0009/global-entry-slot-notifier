@@ -6,7 +6,8 @@ locations and sends notifications via an [app](https://ntfy.sh/) or system notif
 ## Features
 
 - Periodically checks for available Global Entry appointment slots.
-- Sends notifications via an app (using [ntfy.sh](https://ntfy.sh/)) or system notification (using the beeep package).
+- Sends notifications via an app (using [ntfy.sh](https://ntfy.sh/) download on Android/iPhone/Mac) or system notification 
+  (using the beeep package).
 - Configurable via command-line flags.
 
 ## Usage
