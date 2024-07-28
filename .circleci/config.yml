@@ -2,7 +2,7 @@
 version: 2.1
 
 orbs:
-  goreleaser: hubci/goreleaser@2.3.0
+  goreleaser: hubci/goreleaser@2.5.0
 
 executors:
   golang:
@@ -19,7 +19,7 @@ jobs:
 
 workflows:
   version: 2
-  pro-bing:
+  global-entry-slot-notifier:
     jobs:
       - build:
           filters:
@@ -27,7 +27,7 @@ workflows:
               only: /.*/
       - goreleaser/release:
           name: test-release
-          version: '1.16.2'
+          version: '2.1.0'
           go-version: '1.20'
           dry-run: true
           requires:
@@ -37,7 +37,7 @@ workflows:
               only: /.*/
       - goreleaser/release:
           name: release
-          version: '1.16.2'
+          version: '2.1.0'
           go-version: '1.20'
           requires:
             - build
