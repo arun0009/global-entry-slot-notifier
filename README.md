@@ -14,10 +14,10 @@ and sends notifications via native system notification or to [ntfy app](https://
 
 ## Install
 
-1. You can either build the binary using `go` with the command
+1. You can either build the binary using `go` (make sure you have go installed) with the `make` command
 
 ```bash
-go build -o global-entry-slot-notifier cmd/main.go
+ make all
 ```
 
 2. Or Download the latest binary zip from the [releases](https://github.com/arun0009/global-entry-slot-notifier/releases) page. 
@@ -27,7 +27,7 @@ go build -o global-entry-slot-notifier cmd/main.go
 ### Usage
 
 ```bash
-./global-entry-slot-notifier --location <location_id> --notifier <notifier_type> [--topic <ntfy_topic>] [--interval <duration>]
+ ./global-entry-slot-notifier --location <location_id> --notifier <notifier_type> [--topic <ntfy_topic>] [--interval <duration>]
 ```
 
 ### Flags
@@ -41,13 +41,13 @@ go build -o global-entry-slot-notifier cmd/main.go
 1. System Notification
 
 ```bash
-./global-entry-slot-notifier --location 5001 --notifier system --interval 90s
+ ./global-entry-slot-notifier --location 5001 --notifier system --interval 90s
 ```
 
 2. App Notification (first create your [topic on ntfy app](https://docs.ntfy.sh/))
 
 ```bash
-./global-entry-slot-notifier --location 5001 --notifier app --topic my-ntfy-topic
+ ./global-entry-slot-notifier --location 5001 --notifier app --topic my-ntfy-topic
 ```
 
 ###### Pick your location id from below to use in flag (above)

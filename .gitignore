@@ -1,4 +1,5 @@
 .idea/
 *.iml
-globalentry
+bin/
 vendor/
+global-entry-slot-notifier
