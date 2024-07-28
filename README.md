@@ -41,13 +41,13 @@ and sends notifications via native system notification or to [ntfy app](https://
 1. System Notification
 
 ```bash
- ./global-entry-slot-notifier --location 5001 --notifier system --interval 90s
+ ./global-entry-slot-notifier --location 5446 --notifier system --interval 90s
 ```
 
 2. App Notification (first create your [topic on ntfy app](https://docs.ntfy.sh/))
 
 ```bash
- ./global-entry-slot-notifier --location 5001 --notifier app --topic my-ntfy-topic
+ ./global-entry-slot-notifier --location 5446 --notifier app --topic my-ntfy-topic
 ```
 
 ###### Pick your location id from below to use in flag (above)
@@ -179,6 +179,17 @@ and sends notifications via native system notification or to [ntfy app](https://
 | 8120  | Washington DC Enrollment Center - 1300 Pennsylvania Avenue NW Washington DC 20229 US                                                  |
 | 9260  | West Palm Beach Enrollment Center - West Palm Beach Enrollment Center 1 East 11th Street Third Floor Riviera Beach                    |
 | 5029  | Winnipeg Enrollment Center - 1970 Winnipeg NEXUS Office Wellington Room 1074 Winnipeg MB R3H0E3 CA                                    |
+
+### Advanced
+
+You can download the binary on [raspberry pi](https://www.raspberrypi.com/) or on cloud e.g. [alwaysdata free tier](https://www.alwaysdata.com/en/) 
+and run it as background process to notify you via [ntfy.sh](https://ntfy.sh/))
+
+```bash
+curl -L https://github.com/arun0009/global-entry-slot-notifier/releases/download/v1.0/global-entry-slot-notifier_1.0_linux_amd64.tar.gz -o global-entry-slot-notifier.tar.gz
+tar -xvf global-entry-slot-notifier.tar.gz global-entry-slot-notifier
+ ./global-entry-slot-notifier --location 5446 --notifier app --topic my-ntfy-topic &
+```
 
 ### License
 This project is licensed under the MIT License. See the LICENSE file for details.
