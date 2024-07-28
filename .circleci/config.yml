@@ -5,7 +5,7 @@ jobs:
   test-go:
     # Install go modules and run tests
     docker:
-      - image: cimg/go:1.20
+      - image: cimg/go:1.22
     steps:
       - checkout
       - restore_cache:
@@ -29,7 +29,7 @@ jobs:
   build-go-executables:
     # Build go executables and store them as artifacts
     docker:
-      - image: cimg/go:1.20
+      - image: cimg/go:1.22
     steps:
       - checkout
       - restore_cache:
