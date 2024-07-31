@@ -1,10 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"github.com/gen2brain/beeep"
+	"github.com/spf13/cobra"
 	"io"
 	"log"
 	"net/http"
@@ -97,42 +98,73 @@ func appointmentCheck(url string, client HTTPClient, notifier Notifier, topic st
 }
 
 func main() {
-	// Define command-line flags
-	location := flag.String("location", "", "Specify the location ID")
-	notifierType := flag.String("notifier", "", "Specify the notifier type (app/system)")
-	topic := flag.String("topic", "", "Specify the ntfy topic (required if notifier is app)")
-	interval := flag.Duration("interval", time.Second*60, "Specify the interval")
+	var location string
+	var notifierType string
+	var topic string
+	var interval time.Duration
 
-	// Parse command-line flags
-	flag.Parse()
+	rootCmd := &cobra.Command{
+		Use:   "global-entry-slot-notifier",
+		Short: "Checks for appointment slots and sends notifications",
+		Run: func(cmd *cobra.Command, args []string) {
+			// Function to prompt user for input
+			getInput := func(prompt string) string {
+				reader := bufio.NewReader(os.Stdin)
+				fmt.Print(prompt)
+				input, _ := reader.ReadString('\n')
+				return strings.TrimSpace(input)
+			}
 
-	// Validate flags
-	if *location == "" || *notifierType == "" || (*notifierType == "app" && *topic == "") {
-		fmt.Println("Both --location and --notifier flags are required. If notifier is app, --topic is required.")
-		flag.Usage()
+			// Check and prompt for missing flags
+			if location == "" {
+				location = getInput("Enter the location ID: ")
+			}
+			if notifierType == "" {
+				notifierType = getInput("Enter the notifier type (app/system): ")
+			}
+			if notifierType == "app" && topic == "" {
+				topic = getInput("Enter the ntfy topic: ")
+			}
+
+			// Validate flags
+			if location == "" || notifierType == "" || (notifierType == "app" && topic == "") {
+				fmt.Println("Both --location and --notifier flags are required. If notifier is app, --topic is required.")
+				_ = cmd.Usage()
+				os.Exit(1)
+			}
+
+			url := fmt.Sprintf(GlobalEntryUrl, location)
+
+			var notifier Notifier
+			client := &http.Client{}
+			switch notifierType {
+			case "app":
+				notifier = AppNotifier{Client: client}
+			case "system":
+				notifier = SystemNotifier{}
+			default:
+				log.Fatalf("Unknown notifier type: %s", notifierType)
+			}
+
+			// Create a closure that captures the arguments and calls appointmentCheck with them.
+			appointmentCheckFunc := func() {
+				appointmentCheck(url, client, notifier, topic)
+			}
+
+			go appointmentCheckScheduler(interval, appointmentCheckFunc)
+
+			// Keep the main function running to allow the ticker to tick.
+			select {}
+		},
+	}
+
+	rootCmd.Flags().StringVarP(&location, "location", "l", "", "Specify the location ID")
+	rootCmd.Flags().StringVarP(&notifierType, "notifier", "n", "", "Specify the notifier type (app or system)")
+	rootCmd.Flags().StringVarP(&topic, "topic", "t", "", "Specify the ntfy topic (required if notifier is app)")
+	rootCmd.Flags().DurationVarP(&interval, "interval", "i", time.Second*60, "Specify the interval")
+
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
 		os.Exit(1)
 	}
-
-	url := fmt.Sprintf(GlobalEntryUrl, *location)
-
-	var notifier Notifier
-	client := &http.Client{}
-	switch *notifierType {
-	case "app":
-		notifier = AppNotifier{Client: client}
-	case "system":
-		notifier = SystemNotifier{}
-	default:
-		log.Fatalf("Unknown notifier type: %s", *notifierType)
-	}
-
-	// Create a closure that captures the arguments and calls appointmentCheck with them.
-	appointmentCheckFunc := func() {
-		appointmentCheck(url, client, notifier, *topic)
-	}
-
-	go appointmentCheckScheduler(*interval, appointmentCheckFunc)
-
-	// Keep the main function running to allow the ticker to tick.
-	select {}
 }

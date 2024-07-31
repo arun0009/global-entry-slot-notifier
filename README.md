@@ -3,8 +3,9 @@
 <p align="center">
    <img src="./globalentry.png" width="80" alt="Global Entry"/><img src="./globalentry.png" width="80" alt="Global Entry"/><img src="./globalentry.png" width="80" alt="Global Entry"/>
 </p>
+
 Global Entry Slot Notifier is a command-line tool that checks for available Global Entry appointment slots at specified locations 
-and sends notifications via native system notification or to [ntfy app](https://ntfy.sh/) (available on Android, iPhone, and Mac).
+and sends notifications via native system notification or to [ntfy app](https://ntfy.sh/), available on Android, iPhone, and Mac.
 
 ## Features
 
@@ -20,34 +21,35 @@ and sends notifications via native system notification or to [ntfy app](https://
  make all
 ```
 
-2. Or Download the latest binary zip from the [releases](https://github.com/arun0009/global-entry-slot-notifier/releases) page. 
+2. Or Download the latest binary from the [releases](https://github.com/arun0009/global-entry-slot-notifier/releases) page 
+   as `global-entry-slot-notifier` (with `.exe` extension for windows) 
    
-   Extract the tar file and run `global-entry-slot-notifier` binary file. You may need to grant permission to run the binary.
+   Note: You may need to grant permission to run the binary.
 
 ### Usage
 
 ```bash
- ./global-entry-slot-notifier --location <location_id> --notifier <notifier_type> [--topic <ntfy_topic>] [--interval <duration>]
+ ./global-entry-slot-notifier -l <location_id> -n <notifier_type> [-t <ntfy_topic>] [-i <duration>]
 ```
 
 ### Flags
-* `--location` (required): Specify the location ID for the Global Entry appointment (see below location ids).
-* `--notifier` (required): Specify the notifier type (app or system).
-* `--topic` (required if notifier is app): Specify the ntfy.sh [topic](https://docs.ntfy.sh/) to send notifications to.
-* `--interval` (optional): Specify the interval (in seconds, e.g. 30s) at which to check for available appointments. Default is 60s.
+* `-l`, `--location` (required): Specify the location ID for the Global Entry appointment (see below location ids).
+* `-n`, `--notifier` (required): Specify the notifier type (app or system).
+* `-t`, `--topic`    (required if notifier is app): Specify the ntfy.sh [topic](https://docs.ntfy.sh/) to send notifications to.
+* `-i`, `--interval` (optional): Specify the interval (in seconds, e.g. 30s) at which to check for available appointments. Default is 60s.
 
 ### Examples
 
 1. System Notification
 
 ```bash
- ./global-entry-slot-notifier --location 5446 --notifier system --interval 90s
+ ./global-entry-slot-notifier -l 5446 -n system -i 90s
 ```
 
 2. App Notification (first create your [topic on ntfy app](https://docs.ntfy.sh/))
 
 ```bash
- ./global-entry-slot-notifier --location 5446 --notifier app --topic my-ntfy-topic
+ ./global-entry-slot-notifier -l 5446 -n app -t my-ntfy-topic
 ```
 
 ###### Pick your location id from below to use in flag (above)
@@ -186,9 +188,8 @@ You can download the binary on [raspberry pi](https://www.raspberrypi.com/) or o
 and run it as background process to notify you via [ntfy.sh](https://ntfy.sh/))
 
 ```bash
-curl -L https://github.com/arun0009/global-entry-slot-notifier/releases/download/v1.0/global-entry-slot-notifier_1.0_linux_amd64.tar.gz -o global-entry-slot-notifier.tar.gz
-tar -xvf global-entry-slot-notifier.tar.gz global-entry-slot-notifier
- ./global-entry-slot-notifier --location 5446 --notifier app --topic my-ntfy-topic &
+ curl -L https://github.com/arun0009/global-entry-slot-notifier/releases/download/v1.0/global-entry-slot-notifier_1.0_linux_amd64 -o global-entry-slot-notifier
+ ./global-entry-slot-notifier -l 5446 -n app -t my-ntfy-topic &
 ```
 
 ### License
