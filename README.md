@@ -33,7 +33,7 @@ and sends notifications via native system notification or to [ntfy app](https://
 ```
 
 ### Flags
-* `-l`, `--location` (required): Specify the location ID for the Global Entry appointment (see below location ids).
+* `-l`, `--location` (required): Specify the [location ID](https://github.com/arun0009/global-entry-slot-notifier?tab=readme-ov-file#pick-your-location-id-from-below-to-use-in-flag-above) for the Global Entry appointment (see below location ids).
 * `-n`, `--notifier` (required): Specify the notifier type (app or system).
 * `-t`, `--topic`    (required if notifier is app): Specify the ntfy.sh [topic](https://docs.ntfy.sh/) to send notifications to.
 * `-i`, `--interval` (optional): Specify the interval (in seconds, e.g. 30s) at which to check for available appointments. Default is 60s.
