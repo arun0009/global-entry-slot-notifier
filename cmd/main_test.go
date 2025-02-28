@@ -28,13 +28,15 @@ func (m *MockHTTPClient) Post(url, contentType string, body io.Reader) (*http.Re
 type MockNotifier struct {
 	Called      bool
 	LocationID  int
+	StartTime   string
 	Topic       string
 	ReturnError bool
 }
 
-func (m *MockNotifier) Notify(locationID int, topic string) error {
+func (m *MockNotifier) Notify(locationID int, startTime string, topic string) error {
 	m.Called = true
 	m.LocationID = locationID
+	m.StartTime = startTime
 	m.Topic = topic
 	if m.ReturnError {
 		return errors.New("mock error")
@@ -43,8 +45,9 @@ func (m *MockNotifier) Notify(locationID int, topic string) error {
 }
 
 func TestAppointmentCheck(t *testing.T) {
+	futureTime := time.Now().Add(24 * time.Hour).Format(time.RFC3339)
 	appointments := []Appointment{
-		{LocationID: 123},
+		{LocationID: 123, StartTimestamp: futureTime},
 	}
 	appointmentsJSON, _ := json.Marshal(appointments)
 
@@ -59,8 +62,9 @@ func TestAppointmentCheck(t *testing.T) {
 
 	url := "http://example.com"
 	topic := "test-topic"
+	beforeDate := time.Now().Add(48 * time.Hour) // Allow appointments within 48 hours
 
-	appointmentCheck(url, mockClient, mockNotifier, topic)
+	appointmentCheck(url, mockClient, mockNotifier, topic, beforeDate)
 
 	if !mockNotifier.Called {
 		t.Fatalf("Expected Notify to be called")
@@ -87,11 +91,39 @@ func TestAppointmentCheck_NoAppointments(t *testing.T) {
 
 	url := "http://example.com"
 	topic := "test-topic"
+	beforeDate := time.Now().Add(48 * time.Hour) // Allow appointments within 48 hours
 
-	appointmentCheck(url, mockClient, mockNotifier, topic)
+	appointmentCheck(url, mockClient, mockNotifier, topic, beforeDate)
 
 	if mockNotifier.Called {
 		t.Fatalf("Expected Notify not to be called")
+	}
+}
+
+func TestAppointmentCheck_AppointmentOutsideBeforeDate(t *testing.T) {
+	pastTime := time.Now().Add(72 * time.Hour).Format(time.RFC3339) // 3 days from now
+	appointments := []Appointment{
+		{LocationID: 123, StartTimestamp: pastTime},
+	}
+	appointmentsJSON, _ := json.Marshal(appointments)
+
+	mockClient := &MockHTTPClient{
+		Response: &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(string(appointmentsJSON))),
+		},
+		Err: nil,
+	}
+	mockNotifier := &MockNotifier{}
+
+	url := "http://example.com"
+	topic := "test-topic"
+	beforeDate := time.Now().Add(48 * time.Hour) // Only allow appointments within 2 days
+
+	appointmentCheck(url, mockClient, mockNotifier, topic, beforeDate)
+
+	if mockNotifier.Called {
+		t.Fatalf("Expected Notify not to be called for appointments after beforeDate")
 	}
 }
 
@@ -104,8 +136,9 @@ func TestAppointmentCheck_HTTPError(t *testing.T) {
 
 	url := "http://example.com"
 	topic := "test-topic"
+	beforeDate := time.Now().Add(48 * time.Hour) // Allow appointments within 48 hours
 
-	appointmentCheck(url, mockClient, mockNotifier, topic)
+	appointmentCheck(url, mockClient, mockNotifier, topic, beforeDate)
 
 	if mockNotifier.Called {
 		t.Fatalf("Expected Notify not to be called")
@@ -124,8 +157,9 @@ func TestAppointmentCheck_UnmarshalError(t *testing.T) {
 
 	url := "http://example.com"
 	topic := "test-topic"
+	beforeDate := time.Now().Add(48 * time.Hour) // Allow appointments within 48 hours
 
-	appointmentCheck(url, mockClient, mockNotifier, topic)
+	appointmentCheck(url, mockClient, mockNotifier, topic, beforeDate)
 
 	if mockNotifier.Called {
 		t.Fatalf("Expected Notify not to be called")
