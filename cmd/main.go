@@ -4,14 +4,15 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"github.com/gen2brain/beeep"
-	"github.com/spf13/cobra"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/gen2brain/beeep"
+	"github.com/spf13/cobra"
 )
 
 const GlobalEntryUrl = "https://ttp.cbp.dhs.gov/schedulerapi/slots?orderBy=soonest&limit=1&locationId=%s&minimum=1"
@@ -34,7 +35,7 @@ type HTTPClient interface {
 
 // Notifier is an interface for sending notifications.
 type Notifier interface {
-	Notify(locationID int, topic string) error
+	Notify(locationID int, startTime string, topic string) error
 }
 
 // AppNotifier sends notifications via an app.
@@ -42,17 +43,17 @@ type AppNotifier struct {
 	Client HTTPClient
 }
 
-func (a AppNotifier) Notify(locationID int, topic string) error {
+func (a AppNotifier) Notify(locationID int, startTime string, topic string) error {
 	_, err := a.Client.Post(fmt.Sprintf("https://ntfy.sh/%s", topic), "text/plain",
-		strings.NewReader(fmt.Sprintf("There is a global entry appointment open at %d", locationID)))
+		strings.NewReader(fmt.Sprintf("Global Entry appointment available at %d on %s", locationID, startTime)))
 	return err
 }
 
 // SystemNotifier sends system notifications.
 type SystemNotifier struct{}
 
-func (s SystemNotifier) Notify(locationID int, topic string) error {
-	return beeep.Notify("Appointment Slot Available", fmt.Sprintf("There is a global entry appointment open at %d", locationID), "assets/information.png")
+func (s SystemNotifier) Notify(locationID int, startTime string, topic string) error {
+	return beeep.Notify("Appointment Slot Available", fmt.Sprintf("Appointment at %d on %s", locationID, startTime), "assets/information.png")
 }
 
 // appointmentCheckScheduler calls the provided appointmentCheck function at regular intervals.
@@ -68,7 +69,7 @@ func appointmentCheckScheduler(interval time.Duration, appointmentCheck func()) 
 }
 
 // appointmentCheck retrieves the appointment slots and triggers the appropriate notifier.
-func appointmentCheck(url string, client HTTPClient, notifier Notifier, topic string) {
+func appointmentCheck(url string, client HTTPClient, notifier Notifier, topic string, beforeDate time.Time) {
 	response, err := client.Get(url)
 	if err != nil {
 		log.Printf("Failed to get appointment slots: %v", err)
@@ -90,17 +91,22 @@ func appointmentCheck(url string, client HTTPClient, notifier Notifier, topic st
 	}
 
 	if len(appointments) > 0 {
-		locationID := appointments[0].LocationID
-		if err := notifier.Notify(locationID, topic); err != nil {
-			log.Printf("Failed to send notification: %v", err)
+		appointment := appointments[0]
+		appointmentTime, err := time.Parse("2006-01-02T15:04", appointment.StartTimestamp)
+		if err != nil {
+			log.Printf("Failed to parse appointment time: %v", err)
+			return
+		}
+		if appointmentTime.Before(beforeDate) {
+			if err := notifier.Notify(appointment.LocationID, appointment.StartTimestamp, topic); err != nil {
+				log.Printf("Failed to send notification: %v", err)
+			}
 		}
 	}
 }
 
 func main() {
-	var location string
-	var notifierType string
-	var topic string
+	var location, notifierType, topic, before string
 	var interval time.Duration
 
 	rootCmd := &cobra.Command{
@@ -146,9 +152,19 @@ func main() {
 				log.Fatalf("Unknown notifier type: %s", notifierType)
 			}
 
+			beforeDate := time.Now().AddDate(1, 0, 0) // Default: 1 year from now
+			if before != "" {
+				parsedBefore, err := time.Parse("2006-01-02", before)
+				if err == nil {
+					beforeDate = parsedBefore
+				} else {
+					log.Printf("Invalid before date format, using default (1 year from now)")
+				}
+			}
+
 			// Create a closure that captures the arguments and calls appointmentCheck with them.
 			appointmentCheckFunc := func() {
-				appointmentCheck(url, client, notifier, topic)
+				appointmentCheck(url, client, notifier, topic, beforeDate)
 			}
 
 			go appointmentCheckScheduler(interval, appointmentCheckFunc)
@@ -162,6 +178,7 @@ func main() {
 	rootCmd.Flags().StringVarP(&notifierType, "notifier", "n", "", "Specify the notifier type (app or system)")
 	rootCmd.Flags().StringVarP(&topic, "topic", "t", "", "Specify the ntfy topic (required if notifier is app)")
 	rootCmd.Flags().DurationVarP(&interval, "interval", "i", time.Second*60, "Specify the interval")
+	rootCmd.Flags().StringVarP(&before, "before", "b", "", "Show only appointments before the specified date (YYYY-MM-DD)")
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

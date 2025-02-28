@@ -29,7 +29,7 @@ and sends notifications via native system notification or to [ntfy app](https://
 ### Usage
 
 ```bash
- ./global-entry-slot-notifier -l <location_id> -n <notifier_type> [-t <ntfy_topic>] [-i <duration>]
+ ./global-entry-slot-notifier -l <location_id> -n <notifier_type> [-t <ntfy_topic>] [-i <duration>] [-b <before_date>]
 ```
 
 ### Flags
@@ -37,19 +37,20 @@ and sends notifications via native system notification or to [ntfy app](https://
 * `-n`, `--notifier` (required): Specify the notifier type (app or system).
 * `-t`, `--topic`    (required if notifier is app): Specify the ntfy.sh [topic](https://docs.ntfy.sh/) to send notifications to.
 * `-i`, `--interval` (optional): Specify the interval (in seconds, e.g. 30s) at which to check for available appointments. Default is 60s.
+* `-b`, `--before` (optional): Specify a cutoff date (YYYY-MM-DD) to only receive notifications for appointment slots before this date.
 
 ### Examples
 
 1. System Notification
 
 ```bash
- ./global-entry-slot-notifier -l 5446 -n system -i 90s
+ ./global-entry-slot-notifier -l 5446 -n system -i 90s -b 2025-12-30
 ```
 
 2. App Notification (first create your [topic on ntfy app](https://docs.ntfy.sh/))
 
 ```bash
- ./global-entry-slot-notifier -l 5446 -n app -t my-ntfy-topic
+ ./global-entry-slot-notifier -l 5446 -n app -t my-ntfy-topic -b 2025-12-30
 ```
 
 ##### Pick your location id from below to use in flag (above)
