@@ -45,7 +45,7 @@ func (m *MockNotifier) Notify(locationID int, startTime string, topic string) er
 }
 
 func TestAppointmentCheck(t *testing.T) {
-	futureTime := time.Now().Add(24 * time.Hour).Format(time.RFC3339)
+	futureTime := time.Now().Add(24 * time.Hour).Format("2006-01-02T15:04")
 	appointments := []Appointment{
 		{LocationID: 123, StartTimestamp: futureTime},
 	}

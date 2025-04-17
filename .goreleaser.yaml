@@ -1,28 +1,37 @@
-project_name: global-entry-slot-notifier
+version: 2
 
 builds:
-  - id: global-entry-slot-notifier-build
+  - id: global-entry-slot-notifier
     main: ./cmd/main.go
+    binary: global-entry-slot-notifier
+    env:
+      - CGO_ENABLED=0
     goos:
-      - windows
-      - darwin
       - linux
+      - darwin
+      - windows
     goarch:
       - amd64
       - arm64
     ldflags:
-      - "-s -w"
-    binary: global-entry-slot-notifier
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+    flags:
+      - -trimpath
 
 archives:
-  - format: binary
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+  - id: default
+    builds:
+      - global-entry-slot-notifier
+    format: tar.gz
+    name_template: "{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
 
-changelog:
-  sort: asc
-  filters:
-    exclude:
-      - '^docs:'
-      - '^test:'
-      - '^ci:'
-      - '^chore:'
+release:
+  github:
+    owner: arun0009
+    name: global-entry-slot-notifier
+  draft: false
+  prerelease: auto
+  name_template: "{{ .Tag }}"
