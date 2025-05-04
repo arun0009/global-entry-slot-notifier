@@ -4,6 +4,10 @@
    <img src="./globalentry.png" width="80" alt="Global Entry"/><img src="./globalentry.png" width="80" alt="Global Entry"/><img src="./globalentry.png" width="80" alt="Global Entry"/>
 </p>
 
+**Note: This tool (global-entry-slot-notifier) is designed to be run locally—you'll need to download and run the binary manually with command-line options.**
+
+**If you're looking for a fully cloud-based, no-download solution, check out [global-entry-appointment](https://github.com/arun0009/global-entry-appointment), which lets you register for notifications directly via a [simple web page](https://arun0009.github.io/global-entry-appointment).**
+
 Global Entry Slot Notifier is a command-line tool that checks for available Global Entry appointment slots at specified locations 
 and sends notifications via native system notification or to [ntfy app](https://ntfy.sh/), available on Android, iPhone, and Mac.
 
