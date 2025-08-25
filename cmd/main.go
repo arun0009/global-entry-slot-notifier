@@ -15,7 +15,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const GlobalEntryUrl = "https://ttp.cbp.dhs.gov/schedulerapi/slots?orderBy=soonest&limit=1&locationId=%s&minimum=1"
+const hhmmLayout = "15:04" // Go’s layout for HH:MM (24-hour)
+
+// Set to 10 to search through multiple time slots.
+const GlobalEntryUrl = "https://ttp.cbp.dhs.gov/schedulerapi/slots?orderBy=soonest&limit=10&locationId=%s&minimum=1"
 
 // Appointment represents the structure of the appointment JSON returned by the Global Entry API response.
 type Appointment struct {
@@ -38,6 +41,12 @@ type Notifier interface {
 	Notify(locationID int, startTime string, topic string) error
 }
 
+// CheckOptions holds optional time-of-day filters in minutes after midnight; -1 means unset.
+type CheckOptions struct {
+	EarliestMinutes int
+	LatestMinutes   int
+}
+
 // AppNotifier sends notifications via an app.
 type AppNotifier struct {
 	Client HTTPClient
@@ -56,6 +65,19 @@ func (s SystemNotifier) Notify(locationID int, startTime string, topic string) e
 	return beeep.Notify("Appointment Slot Available", fmt.Sprintf("Appointment at %d on %s", locationID, startTime), "assets/information.png")
 }
 
+// parseHHMM parses "HH:MM" in 24-hour format and returns minutes since midnight.
+// If input is invalid, returns -1.
+func parseHHMM(s string) int {
+	if s == "" {
+		return -1
+	}
+	t, err := time.Parse(hhmmLayout, s)
+	if err != nil {
+		return -1
+	}
+	return t.Hour()*60 + t.Minute()
+}
+
 // appointmentCheckScheduler calls the provided appointmentCheck function at regular intervals.
 func appointmentCheckScheduler(interval time.Duration, appointmentCheck func()) {
 	ticker := time.NewTicker(interval)
@@ -69,7 +91,7 @@ func appointmentCheckScheduler(interval time.Duration, appointmentCheck func()) 
 }
 
 // appointmentCheck retrieves the appointment slots and triggers the appropriate notifier.
-func appointmentCheck(url string, client HTTPClient, notifier Notifier, topic string, beforeDate time.Time) {
+func appointmentCheck(url string, client HTTPClient, notifier Notifier, topic string, beforeDate time.Time, opts CheckOptions) {
 	response, err := client.Get(url)
 	if err != nil {
 		log.Printf("Failed to get appointment slots: %v", err)
@@ -90,23 +112,48 @@ func appointmentCheck(url string, client HTTPClient, notifier Notifier, topic st
 		return
 	}
 
-	if len(appointments) > 0 {
-		appointment := appointments[0]
+	found := false
+
+	for _, appointment := range appointments {
 		appointmentTime, err := time.Parse("2006-01-02T15:04", appointment.StartTimestamp)
 		if err != nil {
 			log.Printf("Failed to parse appointment time: %v", err)
-			return
+			continue
 		}
-		if appointmentTime.Before(beforeDate) {
-			if err := notifier.Notify(appointment.LocationID, appointment.StartTimestamp, topic); err != nil {
-				log.Printf("Failed to send notification: %v", err)
+
+		// Filter out appointments after cutoff date
+		if appointmentTime.After(beforeDate) {
+			continue
+		}
+
+		// Optional time-of-day window
+		if opts.EarliestMinutes >= 0 || opts.LatestMinutes >= 0 {
+			minOfDay := appointmentTime.Hour()*60 + appointmentTime.Minute()
+			if opts.EarliestMinutes >= 0 && minOfDay < opts.EarliestMinutes {
+				continue
+			}
+			if opts.LatestMinutes >= 0 && minOfDay > opts.LatestMinutes {
+				continue
 			}
 		}
+
+		// Valid appointment
+		if err := notifier.Notify(appointment.LocationID, appointment.StartTimestamp, topic); err != nil {
+			log.Printf("Failed to send notification for %s: %v", appointment.StartTimestamp, err)
+			continue
+		}
+		found = true
+		break // notify once per cycle (first valid, API is orderBy=soonest)
+	}
+
+	if !found {
+		log.Printf("[%s] No valid appointments found", time.Now().Format("2006-01-02 15:04:05"))
 	}
 }
 
 func main() {
 	var location, notifierType, topic, before string
+	var earliestStr, latestStr string
 	var interval time.Duration
 
 	rootCmd := &cobra.Command{
@@ -162,9 +209,31 @@ func main() {
 				}
 			}
 
+			// Build options from optional earliest/latest (HH:MM, 24-hour). If invalid, ignore.
+			earliestMin := parseHHMM(earliestStr)
+			latestMin := parseHHMM(latestStr)
+
+			if earliestStr != "" && earliestMin < 0 {
+				log.Printf("Invalid --earliest (expected HH:MM), ignoring")
+				earliestMin = -1
+			}
+			if latestStr != "" && latestMin < 0 {
+				log.Printf("Invalid --latest (expected HH:MM), ignoring")
+				latestMin = -1
+			}
+			if earliestMin >= 0 && latestMin >= 0 && latestMin < earliestMin {
+				log.Printf("--latest is before --earliest; ignoring time window")
+				earliestMin, latestMin = -1, -1
+			}
+
+			opts := CheckOptions{
+				EarliestMinutes: earliestMin,
+				LatestMinutes:   latestMin,
+			}
+
 			// Create a closure that captures the arguments and calls appointmentCheck with them.
 			appointmentCheckFunc := func() {
-				appointmentCheck(url, client, notifier, topic, beforeDate)
+				appointmentCheck(url, client, notifier, topic, beforeDate, opts)
 			}
 
 			go appointmentCheckScheduler(interval, appointmentCheckFunc)
@@ -179,6 +248,8 @@ func main() {
 	rootCmd.Flags().StringVarP(&topic, "topic", "t", "", "Specify the ntfy topic (required if notifier is app)")
 	rootCmd.Flags().DurationVarP(&interval, "interval", "i", time.Second*60, "Specify the interval")
 	rootCmd.Flags().StringVarP(&before, "before", "b", "", "Show only appointments before the specified date (YYYY-MM-DD)")
+	rootCmd.Flags().StringVarP(&earliestStr, "earliest", "e", "", "Only appointments at/after this time (HH:MM, 24-hour)")
+	rootCmd.Flags().StringVarP(&latestStr, "latest", "L", "", "Only appointments at/before this time (HH:MM, 24-hour)")
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
