@@ -1,0 +1,77 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+            suffix: ""
+          - os: linux
+            arch: arm64
+            suffix: ""
+          - os: windows
+            arch: amd64
+            suffix: .exe
+          - os: darwin
+            arch: amd64
+            suffix: ""
+          - os: darwin
+            arch: arm64
+            suffix: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+        run: go build -o global-entry-slot-notifier${{ matrix.suffix }} ./cmd
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: global-entry-slot-notifier-${{ matrix.os }}-${{ matrix.arch }}
+          path: global-entry-slot-notifier${{ matrix.suffix }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect binaries with unique names
+        run: |
+          set -e
+          mkdir -p release
+          # Do not use globs (e.g. artifacts/global-entry-slot-notifier-*); use find so layout doesn't matter
+          while IFS= read -r f; do
+            dir=$(dirname "$f")
+            name=$(basename "$dir" | sed 's/global-entry-slot-notifier-/global-entry-slot-notifier_/')
+            case "$dir" in *windows*) name="${name}.exe" ;; esac
+            cp "$f" "release/$name"
+          done < <(find artifacts -type f)
+          ls -la release/
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

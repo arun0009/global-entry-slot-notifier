@@ -22,6 +22,8 @@ make all
 
 **Or** download the latest binary from [releases](https://github.com/arun0009/global-entry-slot-notifier/releases) as `global-entry-slot-notifier` (`.exe` on Windows). You may need to grant permission to run the binary.
 
+**macOS:** Downloaded binaries are unsigned, so Gatekeeper may block them. Either **right-click the binary → Open** (then “Open” in the dialog), or remove the quarantine flag: `xattr -cr global-entry-slot-notifier`
+
 ## Usage
 
 Runs one check immediately, then at the given interval until you stop it (Ctrl+C).
