@@ -2,13 +2,16 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gen2brain/beeep"
@@ -78,12 +81,15 @@ func parseHHMM(s string) int {
 	return t.Hour()*60 + t.Minute()
 }
 
-// appointmentCheckScheduler calls the provided appointmentCheck function at regular intervals.
-func appointmentCheckScheduler(interval time.Duration, appointmentCheck func()) {
+// appointmentCheckScheduler calls the provided appointmentCheck function at regular intervals until ctx is cancelled.
+func appointmentCheckScheduler(ctx context.Context, interval time.Duration, appointmentCheck func()) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
+	appointmentCheck() // run once immediately
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case <-ticker.C:
 			appointmentCheck()
 		}
@@ -98,6 +104,11 @@ func appointmentCheck(url string, client HTTPClient, notifier Notifier, topic st
 		return
 	}
 	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		log.Printf("API returned status %d for %s", response.StatusCode, url)
+		return
+	}
 
 	responseData, err := io.ReadAll(response.Body)
 	if err != nil {
@@ -115,6 +126,9 @@ func appointmentCheck(url string, client HTTPClient, notifier Notifier, topic st
 	found := false
 
 	for _, appointment := range appointments {
+		if !appointment.Active {
+			continue
+		}
 		appointmentTime, err := time.Parse("2006-01-02T15:04", appointment.StartTimestamp)
 		if err != nil {
 			log.Printf("Failed to parse appointment time: %v", err)
@@ -189,7 +203,7 @@ func main() {
 			url := fmt.Sprintf(GlobalEntryUrl, location)
 
 			var notifier Notifier
-			client := &http.Client{}
+			client := &http.Client{Timeout: 30 * time.Second}
 			switch notifierType {
 			case "app":
 				notifier = AppNotifier{Client: client}
@@ -236,10 +250,13 @@ func main() {
 				appointmentCheck(url, client, notifier, topic, beforeDate, opts)
 			}
 
-			go appointmentCheckScheduler(interval, appointmentCheckFunc)
+			ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+			defer stop()
 
-			// Keep the main function running to allow the ticker to tick.
-			select {}
+			go appointmentCheckScheduler(ctx, interval, appointmentCheckFunc)
+
+			<-ctx.Done()
+			log.Println("Shutting down...")
 		},
 	}
 

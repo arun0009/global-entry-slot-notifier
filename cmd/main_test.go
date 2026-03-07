@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -71,7 +72,7 @@ func defaultOpts() CheckOptions {
 func TestAppointmentCheck(t *testing.T) {
 	futureTime := makeTS(1, 10, 30) // 24h+ from now, API layout "2006-01-02T15:04"
 	appointments := []Appointment{
-		{LocationID: 123, StartTimestamp: futureTime},
+		{LocationID: 123, StartTimestamp: futureTime, Active: true},
 	}
 	appointmentsJSON := makeJSON(appointments)
 
@@ -128,7 +129,7 @@ func TestAppointmentCheck_AppointmentOutsideBeforeDate(t *testing.T) {
 	// 3 days from now (outside 48h window), using the API layout so it parses.
 	outsideTime := makeTS(3, 9, 0)
 	appointments := []Appointment{
-		{LocationID: 123, StartTimestamp: outsideTime},
+		{LocationID: 123, StartTimestamp: outsideTime, Active: true},
 	}
 	appointmentsJSON := makeJSON(appointments)
 
@@ -197,12 +198,17 @@ func TestAppointmentCheckScheduler(t *testing.T) {
 		count++
 	}
 
-	go appointmentCheckScheduler(1*time.Second, appointmentCheckFn)
+	ctx, cancel := context.WithTimeout(context.Background(), 3500*time.Millisecond)
+	defer cancel()
 
-	time.Sleep(3500 * time.Millisecond)
+	go appointmentCheckScheduler(ctx, 1*time.Second, appointmentCheckFn)
 
-	if count != 3 {
-		t.Errorf("Expected appointmentCheck to be called 3 times, got %d", count)
+	<-ctx.Done()
+	time.Sleep(50 * time.Millisecond) // allow final tick to complete
+
+	// Immediate run + ticks at 1s, 2s, 3s = 4 calls
+	if count != 4 {
+		t.Errorf("Expected appointmentCheck to be called 4 times, got %d", count)
 	}
 }
 
@@ -211,8 +217,8 @@ func TestAppointmentCheckScheduler(t *testing.T) {
 func TestAppointmentCheck_EarliestOnly(t *testing.T) {
 	// earliest = 08:00; appointments at 07:00 (filtered) and 09:00 (valid)
 	appts := []Appointment{
-		{LocationID: 1, StartTimestamp: makeTS(1, 7, 0)},
-		{LocationID: 2, StartTimestamp: makeTS(1, 9, 0)},
+		{LocationID: 1, StartTimestamp: makeTS(1, 7, 0), Active: true},
+		{LocationID: 2, StartTimestamp: makeTS(1, 9, 0), Active: true},
 	}
 	mockClient := &MockHTTPClient{
 		Response: &http.Response{
@@ -244,8 +250,8 @@ func TestAppointmentCheck_EarliestOnly(t *testing.T) {
 func TestAppointmentCheck_LatestOnly(t *testing.T) {
 	// latest = 10:00; appointments at 09:30 (valid) then 11:00 (filtered)
 	appts := []Appointment{
-		{LocationID: 10, StartTimestamp: makeTS(1, 9, 30)},
-		{LocationID: 11, StartTimestamp: makeTS(1, 11, 0)},
+		{LocationID: 10, StartTimestamp: makeTS(1, 9, 30), Active: true},
+		{LocationID: 11, StartTimestamp: makeTS(1, 11, 0), Active: true},
 	}
 	mockClient := &MockHTTPClient{
 		Response: &http.Response{
@@ -276,9 +282,9 @@ func TestAppointmentCheck_LatestOnly(t *testing.T) {
 func TestAppointmentCheck_BothValidRange(t *testing.T) {
 	// earliest=08:00, latest=10:00; appointments at 07:30 (filtered), 09:00 (valid), 10:30 (filtered)
 	appts := []Appointment{
-		{LocationID: 101, StartTimestamp: makeTS(1, 7, 30)},
-		{LocationID: 102, StartTimestamp: makeTS(1, 9, 0)},
-		{LocationID: 103, StartTimestamp: makeTS(1, 10, 30)},
+		{LocationID: 101, StartTimestamp: makeTS(1, 7, 30), Active: true},
+		{LocationID: 102, StartTimestamp: makeTS(1, 9, 0), Active: true},
+		{LocationID: 103, StartTimestamp: makeTS(1, 10, 30), Active: true},
 	}
 	mockClient := &MockHTTPClient{
 		Response: &http.Response{
@@ -309,9 +315,9 @@ func TestAppointmentCheck_BothValidRange(t *testing.T) {
 func TestAppointmentCheck_BothInvalidRange_NoNotify(t *testing.T) {
 	// earliest=12:00, latest=10:00, impossible to satisfy both; expect no notify
 	appts := []Appointment{
-		{LocationID: 201, StartTimestamp: makeTS(1, 9, 0)},
-		{LocationID: 202, StartTimestamp: makeTS(1, 11, 30)},
-		{LocationID: 203, StartTimestamp: makeTS(1, 13, 0)},
+		{LocationID: 201, StartTimestamp: makeTS(1, 9, 0), Active: true},
+		{LocationID: 202, StartTimestamp: makeTS(1, 11, 30), Active: true},
+		{LocationID: 203, StartTimestamp: makeTS(1, 13, 0), Active: true},
 	}
 	mockClient := &MockHTTPClient{
 		Response: &http.Response{
@@ -333,5 +339,32 @@ func TestAppointmentCheck_BothInvalidRange_NoNotify(t *testing.T) {
 
 	if mockNotifier.Called {
 		t.Fatalf("Expected Notify NOT to be called when latest < earliest")
+	}
+}
+
+func TestAppointmentCheck_InactiveFiltered(t *testing.T) {
+	futureTime := makeTS(1, 10, 30)
+	appointments := []Appointment{
+		{LocationID: 123, StartTimestamp: futureTime, Active: false},
+	}
+	appointmentsJSON := makeJSON(appointments)
+
+	mockClient := &MockHTTPClient{
+		Response: &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(appointmentsJSON)),
+		},
+		Err: nil,
+	}
+	mockNotifier := &MockNotifier{}
+
+	url := "http://example.com"
+	topic := "test-topic"
+	beforeDate := time.Now().Add(48 * time.Hour)
+
+	appointmentCheck(url, mockClient, mockNotifier, topic, beforeDate, defaultOpts())
+
+	if mockNotifier.Called {
+		t.Fatalf("Expected Notify not to be called for inactive appointments")
 	}
 }

@@ -1,6 +1,6 @@
 module github.com/arun0009/global-entry-slot-notifier
 
-go 1.23
+go 1.26
 
 require (
 	github.com/gen2brain/beeep v0.0.0-20240516210008-9c006672e7f4
